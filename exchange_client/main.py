@@ -1,15 +1,22 @@
-import asyncio
 import aiohttp
+import asyncio
+import time
+from typing import Any
 
 
 INDEX_NAMES = ('btc_usd', 'eth_usd')
+POLLING_INTERVAL = 5  # Must be 60
 
 
-async def get_index_price(index_name):
+def get_ticker_from_index_name(index_name: str) -> str:
+    return index_name.split('_')[0].upper()
+
+async def fetch_data_from_API(index_name: str) -> dict[str, Any]:
     """
-    Fetch the index price of the specified currency.
+    Fetch the data with the index price of the specified currency from
+    exchange API.
 
-    Estimated JSON response:
+    Expected JSON response:
     {
         "jsonrpc":"2.0",
         "result":{
@@ -23,17 +30,38 @@ async def get_index_price(index_name):
     }
     """
     async with aiohttp.ClientSession() as session:
-        url = 'https://test.deribit.com/api/v2/public/get_index_price'
+        url = 'https://deribit.com/api/v2/public/get_index_price'
         params = {'index_name': index_name}
         async with session.get(url=url, params=params) as resp:
-            print('Response status code:', resp.status)
-            text = await resp.json()
-            print(f'Price {index_name}: {text['result']['index_price']}')
+            resp.raise_for_status()
+            print('Response status code:', resp.status)  # PRINT_DEL
+            data = await resp.json()
+            print(f'Price {index_name}: {data['result']['index_price']}')  # PRINT_DEL
+    return data
 
-async def main():
-    for name in INDEX_NAMES:
-        await get_index_price(name)
+async def get_index_price(index_name: str) -> tuple[str, float]:
+    """Get ticker and index price of the specified currency."""
+    ticker = get_ticker_from_index_name(index_name)
+
+    data = await fetch_data_from_API(index_name)
+    price = data['result']['index_price']
+
+    return ticker, price
+
+async def main() -> None:
+    """Receive data from the exchange API in a delayed loop and save it into
+    a database."""
+    while True:
+        start_time = time.time()
+        print(start_time)  # PRINT_DEL
+        for name in INDEX_NAMES:
+            ticker, price = await get_index_price(name)
+            # await save_price_to_db(ticker, price)
+        await asyncio.sleep(POLLING_INTERVAL - (time.time() - start_time))
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('\nClient stopped')
