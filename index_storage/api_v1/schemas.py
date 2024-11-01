@@ -11,4 +11,4 @@ class IndexPriceSave(BaseModel):
 class IndexPrice(BaseModel):
     ticker: str
     price: float
-    created_at: datetime
+    unix_timestamp: datetime

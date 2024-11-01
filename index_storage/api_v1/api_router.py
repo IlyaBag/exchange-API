@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -30,11 +30,11 @@ async def get_all_data(
     stmt = (select(IndexPriceModel)
             .filter(IndexPriceModel.ticker == ticker.upper()))
     if requested_date:
-        date_obj = date.fromisoformat(requested_date)
+        date_obj = datetime.fromisoformat(f'{requested_date}T00:00Z')
         stmt = stmt.filter(
-            IndexPriceModel.created_at.between(
-                date_obj,
-                date_obj + timedelta(days=1)
+            IndexPriceModel.unix_timestamp.between(
+                date_obj.timestamp(),
+                (date_obj + timedelta(days=1)).timestamp()
             )
         )
     result: Result = await session.execute(stmt)
@@ -49,7 +49,7 @@ async def get_last_price(
     """Returns the last saved price of the adjusted currency."""
     stmt = (select(IndexPriceModel)
             .filter(IndexPriceModel.ticker == ticker.upper())
-            .order_by(desc(IndexPriceModel.created_at))
+            .order_by(desc(IndexPriceModel.unix_timestamp))
             .limit(1))
     result: Result = await session.execute(stmt)
     last_price = result.scalar()
